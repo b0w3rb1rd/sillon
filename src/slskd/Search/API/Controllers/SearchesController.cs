@@ -172,6 +172,14 @@ namespace slskd.Search.API
                 return Forbid();
             }
 
+            // sillon: while the search runs, return the responses received so far (streaming display).
+            var live = Searches.LiveResponses(id);
+
+            if (live != null)
+            {
+                return Ok(live);
+            }
+
             var search = await Searches.FindAsync(search => search.Id == id, includeResponses: true);
 
             if (search == default)

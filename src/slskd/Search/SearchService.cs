@@ -73,6 +73,14 @@ namespace slskd.Search
         Task<Search> FindAsync(Expression<Func<Search, bool>> expression, bool includeResponses = false);
 
         /// <summary>
+        ///     sillon: returns the responses received so far for a search that is still running, or null
+        ///     if the search is not in progress (its responses are then persisted and read from the database).
+        /// </summary>
+        /// <param name="id">The unique id of the search.</param>
+        /// <returns>A snapshot of the responses received so far, or null.</returns>
+        IEnumerable<Response> LiveResponses(Guid id);
+
+        /// <summary>
         ///     Returns a list of all completed and in-progress searches, with responses omitted, matching the optional <paramref name="expression"/>.
         /// </summary>
         /// <param name="expression">An optional expression used to match searches.</param>
@@ -118,6 +126,25 @@ namespace slskd.Search
     /// </summary>
     public class SearchService : ISearchService
     {
+        /// <summary>
+        ///     sillon: responses of in-progress searches, so that clients can display them as they arrive.
+        /// </summary>
+        private static readonly ConcurrentDictionary<Guid, List<SearchResponse>> Live = new();
+
+        /// <inheritdoc/>
+        public IEnumerable<Response> LiveResponses(Guid id)
+        {
+            if (!Live.TryGetValue(id, out var list))
+            {
+                return null;
+            }
+
+            lock (list)
+            {
+                return list.Select(r => Response.FromSoulseekSearchResponse(r)).ToList();
+            }
+        }
+
         /// <summary>
         ///     Initializes a new instance of the <see cref="SearchService"/> class.
         /// </summary>
@@ -272,6 +299,7 @@ namespace slskd.Search
                 // initialize the list of responses that we'll use to accumulate them
                 // populated by the responseHandler we pass to SearchAsync
                 List<SearchResponse> responses = new();
+                Live[id] = responses;
 
                 options ??= new SearchOptions();
                 options = options.WithActions(
@@ -308,7 +336,13 @@ namespace slskd.Search
                 // the client state (e.g. disconnected) or a problem with the search (e.g. no terms)
                 var soulseekSearchTask = Client.SearchAsync(
                     query,
-                    responseHandler: (response) => responses.Add(response),
+                    responseHandler: (response) =>
+                    {
+                        lock (responses)
+                        {
+                            responses.Add(response);
+                        }
+                    },
                     scope,
                     token,
                     options,
@@ -356,9 +390,13 @@ namespace slskd.Search
                         }
 
                         search.EndedAt = DateTime.UtcNow;
-                        search.Responses = responses.Select(r => Response.FromSoulseekSearchResponse(r));
+                        lock (responses)
+                        {
+                            search.Responses = responses.Select(r => Response.FromSoulseekSearchResponse(r)).ToList();
+                        }
 
                         Update(search);
+                        Live.TryRemove(id, out _);
 
                         // zero responses before broadcasting, as we don't want to blast this
                         // data out over the SignalR socket
@@ -376,6 +414,7 @@ namespace slskd.Search
                     {
                         rateLimiter.Dispose();
                         CancellationTokens.TryRemove(id, out _);
+                        Live.TryRemove(id, out _);
                     }
                 }, cancellationToken: cancellationTokenSource.Token);
 
@@ -388,6 +427,7 @@ namespace slskd.Search
                 // we'll end up here if the initial call throws for an ArgumentException, InvalidOperationException if
                 // the app isn't connected, and a few other straightforward issues that arise before even requesting the search
                 Log.Error(ex, "Failed to execute search {Search}: {Message}", new { query, scope, options }, ex.Message);
+                Live.TryRemove(id, out _);
 
                 // selectively 'undo' whatever actions we were able to take successfully
                 if (searchCreated)
