@@ -1,10 +1,13 @@
-// <copyright file="Share.cs" company="JP Dillingham">
+﻿// <copyright file="Share.cs" company="JP Dillingham">
 //           ▄▄▄▄     ▄▄▄▄     ▄▄▄▄
 //     ▄▄▄▄▄▄█  █▄▄▄▄▄█  █▄▄▄▄▄█  █
 //     █__ --█  █__ --█    ◄█  -  █
 //     █▄▄▄▄▄█▄▄█▄▄▄▄▄█▄▄█▄▄█▄▄▄▄▄█
 //   ┍━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ━━━━ ━  ━┉   ┉     ┉
 //   │ Copyright (c) JP Dillingham.
+//   │
+//   │ Copyright (c) 2026 b0w3rb1rd.
+//   │ Modified: sillon — locked (buddies-only) shares, marked with a leading '~'.
 //   │
 //   │ This program is free software: you can redistribute it and/or modify
 //   │ it under the terms of the GNU Affero General Public License as published
@@ -72,6 +75,15 @@ namespace slskd.Shares
         public Share(string share)
         {
             Raw = share;
+
+            // sillon : « ~ » en tête = partage verrouillé (réservé aux amis).
+            IsLocked = share.StartsWith(Sillon.Locking.LockedPrefix);
+
+            if (IsLocked)
+            {
+                share = share[1..];
+            }
+
             IsExcluded = share.StartsWith('-') || share.StartsWith('!');
 
             if (IsExcluded)
@@ -105,6 +117,11 @@ namespace slskd.Shares
         public string Id { get; init; }
         public string Alias { get; init; }
         public bool IsExcluded { get; init; }
+
+        /// <summary>
+        ///     Gets a value indicating whether the share is locked (buddies only). Added by sillon.
+        /// </summary>
+        public bool IsLocked { get; init; }
         public string LocalPath { get; init; }
         public string Raw { get; init; }
         public string RemotePath { get; init; }

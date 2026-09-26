@@ -6,6 +6,9 @@
 //   ┍━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ━━━━ ━  ━┉   ┉     ┉
 //   │ Copyright (c) JP Dillingham.
 //   │
+//   │ Copyright (c) 2026 b0w3rb1rd.
+//   │ Modified: sillon — locked (buddies-only) shares in search, browse, directory and enqueue.
+//   │
 //   │ This program is free software: you can redistribute it and/or modify
 //   │ it under the terms of the GNU Affero General Public License as published
 //   │ by the Free Software Foundation, version 3.
@@ -568,9 +571,21 @@ namespace slskd
             }
         }
 
+        /// <summary>
+        ///     sillon : chemins distants des partages verrouillés (réservés aux amis), d'après la configuration courante.
+        /// </summary>
+        private IReadOnlyList<string> LockedRemotePaths => Sillon.Locking.LockedRemotePaths(OptionsMonitor.CurrentValue.Shares.Directories);
+
         private async Task EnqueueDownload(string username, IPEndPoint endpoint, string filename)
         {
             Metrics.Enqueue.RequestsReceived.Inc(1);
+
+            // sillon : fichier d'un partage verrouillé demandé par un pair qui n'est pas un ami.
+            if (Sillon.Locking.IsLocked(LockedRemotePaths, filename) && !Sillon.Locking.IsBuddy(username))
+            {
+                Log.Information("Rejected enqueue request from {Username} for locked file {File} (buddies only)", username, filename);
+                throw new DownloadEnqueueException("File not shared.");
+            }
 
             // it shouldn't be possible for us to be sharing any such files, as share paths are required to be absolute and rooted
             // if someone is requesting a file like this, something is either really wrong, or they are a bad actor
@@ -889,13 +904,22 @@ namespace slskd
 
                 BrowseResponse response = default;
 
-                var cacheFilename = Path.Combine(Program.DataDirectory, "browse.cache");
+                // sillon : les non-amis reçoivent la vue où les partages verrouillés sont annoncés comme tels.
+                var lockedView = LockedRemotePaths.Count > 0 && !Sillon.Locking.IsBuddy(username);
+                var cacheFilename = Path.Combine(Program.DataDirectory, lockedView ? "browse-locked.cache" : "browse.cache");
                 var cacheFileInfo = Files.ResolveFileInfo(cacheFilename);
 
                 if (!cacheFileInfo.Exists)
                 {
                     Log.Warning("Browse response not cached. Rebuilding...");
                     response = await CacheBrowseResponse();
+
+                    if (lockedView)
+                    {
+                        response = new BrowseResponse(
+                            response.Directories.Where(d => !Sillon.Locking.IsLocked(LockedRemotePaths, d.Name)),
+                            response.Directories.Where(d => Sillon.Locking.IsLocked(LockedRemotePaths, d.Name)));
+                    }
                 }
                 else
                 {
@@ -1435,6 +1459,13 @@ namespace slskd
                 return [new Soulseek.Directory(directory)];
             }
 
+            // sillon : on ne détaille pas le contenu d'un dossier verrouillé à un non-ami.
+            if (Sillon.Locking.IsLocked(LockedRemotePaths, directory) && !Sillon.Locking.IsBuddy(username))
+            {
+                Log.Information("Returned empty directory listing for locked directory {Directory} to {Username} (buddies only)", directory, username);
+                return [new Soulseek.Directory(directory)];
+            }
+
             try
             {
                 var dir = await Shares.ListDirectoryAsync(directory);
@@ -1742,13 +1773,18 @@ namespace slskd
 
                         Log.Debug("Sending search response with {Count} files to {Username} for query '{Query}'", results.Count(), username, query.SearchText);
 
+                        // sillon : pour un non-ami, les fichiers des partages verrouillés partent dans la liste « verrouillés ».
+                        var locked = LockedRemotePaths;
+                        var hideLocked = locked.Count > 0 && !Sillon.Locking.IsBuddy(username);
+
                         response = new SearchResponse(
                             Client.Username,
                             token,
                             uploadSpeed: State.CurrentValue.User.Statistics.AverageSpeed,
                             hasFreeUploadSlot: forecastedPosition == 0,
                             queueLength: forecastedPosition,
-                            fileList: results);
+                            fileList: hideLocked ? results.Where(f => !Sillon.Locking.IsLocked(locked, f.Filename)) : results,
+                            lockedFileList: hideLocked ? results.Where(f => Sillon.Locking.IsLocked(locked, f.Filename)) : null);
                     }
 
                     sw.Stop();
@@ -1880,6 +1916,15 @@ namespace slskd
                 var response = new BrowseResponse(directories);
                 var temp = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
                 var destination = Path.Combine(Program.DataDirectory, "browse.cache");
+
+                // sillon : seconde vue pour les non-amis, avec les dossiers des partages verrouillés à part.
+                var locked = LockedRemotePaths;
+                var lockedView = new BrowseResponse(
+                    directories.Where(d => !Sillon.Locking.IsLocked(locked, d.Name)),
+                    directories.Where(d => Sillon.Locking.IsLocked(locked, d.Name)));
+                var lockedTemp = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+                await System.IO.File.WriteAllBytesAsync(lockedTemp, lockedView.ToByteArray());
+                System.IO.File.Move(lockedTemp, Path.Combine(Program.DataDirectory, "browse-locked.cache"), overwrite: true);
 
                 Log.Information("Warming browse response cache...");
                 await System.IO.File.WriteAllBytesAsync(temp, response.ToByteArray());

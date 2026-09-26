@@ -1,10 +1,13 @@
-// <copyright file="Options.cs" company="JP Dillingham">
+﻿// <copyright file="Options.cs" company="JP Dillingham">
 //           ▄▄▄▄     ▄▄▄▄     ▄▄▄▄
 //     ▄▄▄▄▄▄█  █▄▄▄▄▄█  █▄▄▄▄▄█  █
 //     █__ --█  █__ --█    ◄█  -  █
 //     █▄▄▄▄▄█▄▄█▄▄▄▄▄█▄▄█▄▄█▄▄▄▄▄█
 //   ┍━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ━━━━ ━  ━┉   ┉     ┉
 //   │ Copyright (c) JP Dillingham.
+//   │
+//   │ Copyright (c) 2026 b0w3rb1rd.
+//   │ Modified: sillon — share validation accepts the locked-share prefix '~'.
 //   │
 //   │ This program is free software: you can redistribute it and/or modify
 //   │ it under the terms of the GNU Affero General Public License as published
@@ -783,16 +786,16 @@ namespace slskd
 
                 var directories = Directories ?? Enumerable.Empty<string>();
 
-                bool IsBlankPath(string share) => Regex.IsMatch(FileSafety.LocalizePath(share), @"^(!|-){0,1}(\[.*\])$");
+                bool IsBlankPath(string share) => Regex.IsMatch(FileSafety.LocalizePath(share), @"^~?(!|-){0,1}(\[.*\])$");
                 directories?.Where(share => IsBlankPath(share)).ToList()
                     .ForEach(blank => results.Add(new ValidationResult($"Share {blank} does not specify a path")));
 
-                bool IsRootMount(string share) => Regex.IsMatch(FileSafety.LocalizePath(share), @"^(!|-){0,1}(\[.*\])/$");
+                bool IsRootMount(string share) => Regex.IsMatch(FileSafety.LocalizePath(share), @"^~?(!|-){0,1}(\[.*\])/$");
                 directories?.Where(share => IsRootMount(share)).ToList()
                     .ForEach(blank => results.Add(new ValidationResult($"Share {blank} specifies a root mount, which is not supported.")));
 
                 // starts with '/', 'X:', or '\\'
-                bool IsAbsolutePath(string share) => Regex.IsMatch(FileSafety.LocalizePath(share), @"^(!|-){0,1}(\[.*\])?(\/|[a-zA-Z]:|\\\\).*$");
+                bool IsAbsolutePath(string share) => Regex.IsMatch(FileSafety.LocalizePath(share), @"^~?(!|-){0,1}(\[.*\])?(\/|[a-zA-Z]:|\\\\).*$");
                 directories?.Where(share => !IsAbsolutePath(share)).ToList()
                     .ForEach(relativePath => results.Add(new ValidationResult($"Share {relativePath} contains a relative path; only absolute paths are supported.")));
 
@@ -804,7 +807,7 @@ namespace slskd
 
                 (string Raw, string Alias, string Path) Digest(string share)
                 {
-                    var matches = Regex.Matches(share, @"^(!|-){0,1}\[([^\]]*)\](.*)$");
+                    var matches = Regex.Matches(share, @"^~?(!|-){0,1}\[([^\]]*)\](.*)$");
 
                     if (matches.Any())
                     {

@@ -1,141 +1,37 @@
-# slskd
+# sillon
 
-[![Build](https://img.shields.io/github/actions/workflow/status/slskd/slskd/ci.yml?branch=master&logo=github)](https://github.com/slskd/slskd/actions/workflows/ci.yml)
-[![Docker Pulls](https://img.shields.io/docker/pulls/slskd/slskd?logo=docker)](https://hub.docker.com/r/slskd/slskd)
-[![GitHub all releases](https://img.shields.io/github/downloads/slskd/slskd/total?logo=github&color=brightgreen)](https://github.com/slskd/slskd/releases)
-[![Contributors](https://img.shields.io/github/contributors/slskd/slskd?logo=github)](https://github.com/slskd/slskd/graphs/contributors)
-[![Discord](https://img.shields.io/discord/971446666257391616?label=Discord&logo=discord)](https://slskd.org/discord)
-[![Matrix](https://img.shields.io/badge/Matrix-%3F%20online-na?logo=matrix&color=brightgreen)](https://slskd.org/matrix)
+> This is a modified version of slskd.  It is not maintained by, endorsed by, or affiliated with the slskd project or its author(s).
 
-A modern client-server application for the [Soulseek](https://www.slsknet.org/news/) file-sharing network.
+**sillon** is a Soulseek client daemon based on [slskd](https://github.com/slskd/slskd) 0.26.0. It is used as the
+network engine of a desktop app and runs headless, driven through its REST API.
 
-## Features
+## Changes from slskd
 
-### Secure access
+- **Locked (buddies-only) shares.** A share whose path is prefixed with `~` (for example `~/Users/me/Music/Private`)
+  is announced as *locked* to peers who are not buddies: its files go to the locked list of search responses, its
+  directories to the locked list of browse responses, directory listings are not detailed, and download requests are
+  rejected. Buddies see and download it normally. The buddy list is read from the file named by the
+  `SILLON_BUDDIES_FILE` environment variable (one username per line) and reloaded automatically when it changes.
+  See [`src/slskd/Sillon/Locking.cs`](src/slskd/Sillon/Locking.cs). Related upstream request:
+  [slskd#937](https://github.com/slskd/slskd/issues/937).
+- **Listening previews.** `POST /api/v0/sillon/preview` downloads a portion of a remote file starting at a given
+  offset, then stops the transfer (one preview at a time), so that a few seconds can be heard before downloading.
+  See [`src/slskd/Sillon/PreviewController.cs`](src/slskd/Sillon/PreviewController.cs).
+- **Identity.** Distinct network client version identifier (`NetworkMinorVersion = 4113`) and startup banner.
 
-slskd runs as a daemon or Docker container in your network (or in the cloud!) and is accessible from a web browser.  It's designed to be exposed to the internet, and everything is secured with a token that [you can control](https://github.com/slskd/slskd/blob/master/docs/config.md#authentication).  It also supports [reverse proxies](https://github.com/slskd/slskd/blob/master/docs/reverse_proxy.md), making it work well with other self-hosted tools.
+Each modified source file carries a notice describing the change in its header.
 
-![image](https://user-images.githubusercontent.com/17145758/193290217-0e6d87f5-a547-4451-8d90-d554a902716c.png)
+## Building
 
-### Search
+Requires the .NET 10 SDK.
 
-Search for things just like you're used to with the official Soulseek client.  slskd makes it easy to enter multiple searches quickly.
-
-![image](https://user-images.githubusercontent.com/17145758/193286989-30bd524d-81b6-4721-bd72-e4438c2b7b69.png)
-
-### Results
-
-Sort and filter search results using the same filters you use today.  Dismiss results you're not interested in, and download the ones you want in a couple of clicks.
-
-![image](https://user-images.githubusercontent.com/17145758/193288396-dc3cc83d-6d93-414a-93f6-cea0696ac245.png)
-
-### Downloads
-
-Monitor the speed and status of downloads, grouped by user and folder.  Click the progress bar to fetch your place in queue, and use the selection tools to cancel, retry, or clear completed downloads.  Use the controls at the top to quickly manage downloads by status.
-
-![image](https://user-images.githubusercontent.com/17145758/193289840-3aee153f-3656-4f15-b086-8b1ca25d38bb.png)
-
-### Pretty much everything else
-
-slskd can do almost everything the official Soulseek client can; browse user shares, join chat rooms, privately chat with other users.
-
-New features are added all the time!
-
-## Quick Start
-
-### With Docker
-
-Choose Docker's built-in method of specifying a user for the container:
-
-```shell
-docker run -d \
-  -p 5030:5030 \
-  -p 5031:5031 \
-  -p 50300:50300 \
-  -e SLSKD_REMOTE_CONFIGURATION=true \
-  -v <path/to/application/data>:/app \
-  --name slskd \
-  --user 1000:1000 \
-  slskd/slskd:latest
+```bash
+dotnet test tests/slskd.Tests.Unit --filter "FullyQualifiedName~Sillon"
+dotnet publish src/slskd/slskd.csproj -c Release -r osx-arm64 --self-contained -p:PublishSingleFile=true
 ```
 
-Or use the Linuxserver/*arr `PUID`/`PGID` method:
+## License
 
-```shell
-docker run -d \
-  -p 5030:5030 \
-  -p 5031:5031 \
-  -p 50300:50300 \
-  -e PUID=1000 \
-  -e PGID=1000 \
-  -e SLSKD_REMOTE_CONFIGURATION=true \
-  -v <path/to/application/data>:/app \
-  --name slskd \
-  slskd/slskd:latest
-```
-
-### With Docker-Compose
-
-Choose Docker's built-in method of specifying a user for the container:
-
-```yaml
-services:
-  slskd:
-    image: slskd/slskd
-    container_name: slskd
-    user: "1000:1000"
-    ports:
-      - "5030:5030"
-      - "5031:5031"
-      - "50300:50300"
-    environment:
-      - SLSKD_REMOTE_CONFIGURATION=true
-    volumes:
-      - <path/to/application/data>:/app
-    restart: always
-```
-
-Or use the Linuxserver/*arr `PUID`/`PGID` method:
-
-```yaml
-services:
-  slskd:
-    image: slskd/slskd
-    container_name: slskd
-    ports:
-      - "5030:5030"
-      - "5031:5031"
-      - "50300:50300"
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - SLSKD_REMOTE_CONFIGURATION=true
-    volumes:
-      - <path/to/application/data>:/app
-    restart: always
-```
-
-This command or docker-compose file (depending on your choice) starts a container instance of slskd on ports 5030 (HTTP) and 5031 (HTTPS using a self-signed certificate). slskd begins listening for incoming connections on port 50300 and maps the application directory to the provided path.
-
-Once the container is running you can access the web UI over HTTP on port 5030, or HTTPS on port 5031.  The default username and password are `slskd` and `slskd`, respectively.  You'll want to change these if the application will be internet facing.
-
-The `SLSKD_REMOTE_CONFIGURATION` environment variable allows you to modify application configuration settings from the web UI.  You might not want to enable this for an internet-facing installation.
-
-You can find a more in-depth guide to running slskd in Docker [here](https://github.com/slskd/slskd/blob/master/docs/docker.md).
-
-### With Binaries
-
-The latest stable binaries can be downloaded from the [releases](https://github.com/slskd/slskd/releases) page. Platform-specific binaries and the static content for the Web UI are produced as artifacts from every [build](https://github.com/slskd/slskd/actions?query=workflow%3ACI) if you'd prefer to use a canary release.
-
-Binaries are shipped as zip files; extract the zip to your chosen directory and run.
-
-An application directory will be created in either `~/.local/share/slskd` (on Linux and macOS) or `%localappdata%/slskd` (on Windows).  In the root of this directory the file `slskd.yml` will be created the first time the application runs.  Edit this file to enter your credentials for the Soulseek network, and tweak any additional settings using the [configuration guide](https://github.com/slskd/slskd/blob/master/docs/config.md).
-
-## Configuration
-
-Once running, log in to the web UI using the default username `slskd` and password `slskd` to complete the configuration.
-
-Detailed documentation for configuration options can be found [here](https://github.com/slskd/slskd/blob/master/docs/config.md), and an example of the YAML configuration file can be reviewed [here](https://github.com/slskd/slskd/blob/master/config/slskd.example.yml).
-
-## Reverse Proxy
-SLSKD may require extra configuration when running it behind a reverse proxy. Refer [here](https://github.com/slskd/slskd/blob/master/docs/reverse_proxy.md) for a short guide.
+Licensed under the GNU Affero General Public License v3.0 with Additional Terms pursuant to Section 7 of the AGPLv3,
+inherited from slskd. See [LICENSE](LICENSE) and [NOTICE](NOTICE). slskd is Copyright (c) JP Dillingham;
+modifications are Copyright (c) 2026 b0w3rb1rd.

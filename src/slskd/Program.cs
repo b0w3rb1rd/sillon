@@ -1,10 +1,13 @@
-// <copyright file="Program.cs" company="JP Dillingham">
+﻿// <copyright file="Program.cs" company="JP Dillingham">
 //           ▄▄▄▄     ▄▄▄▄     ▄▄▄▄
 //     ▄▄▄▄▄▄█  █▄▄▄▄▄█  █▄▄▄▄▄█  █
 //     █__ --█  █__ --█    ◄█  -  █
 //     █▄▄▄▄▄█▄▄█▄▄▄▄▄█▄▄█▄▄█▄▄▄▄▄█
 //   ┍━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ━━━━ ━  ━┉   ┉     ┉
 //   │ Copyright (c) JP Dillingham.
+//   │
+//   │ Copyright (c) 2026 b0w3rb1rd.
+//   │ Modified: sillon — distinct network version identifier and startup banner.
 //   │
 //   │ This program is free software: you can redistribute it and/or modify
 //   │ it under the terms of the GNU Affero General Public License as published
@@ -181,7 +184,7 @@ namespace slskd
         /// <remarks>
         ///     NOTICE: If you have forked slskd, change this number to something else.
         /// </remarks>
-        public static int NetworkMinorVersion { get; } = 760;
+        public static int NetworkMinorVersion { get; } = 4113; // sillon : identifiant propre (voir FORKING.md)
 
         /// <summary>
         ///     Gets a value indicating whether the current version is a Canary build.
@@ -1744,66 +1747,12 @@ namespace slskd
 
         private static void PrintLogo(string version)
         {
-            try
-            {
-                var padding = 56 - version.Length;
-                var paddingLeft = padding / 2;
-                var paddingRight = paddingLeft + (padding % 2);
-
-                var centeredVersion = new string(' ', paddingLeft) + version + new string(' ', paddingRight);
-
-                var logos = new[]
-                {
-                    $@"
-          ▄▄▄▄         ▄▄▄▄       ▄▄▄▄
-  ▄▄▄▄▄▄▄ █  █ ▄▄▄▄▄▄▄ █  █▄▄▄ ▄▄▄█  █
-  █__ --█ █  █ █__ --█ █    ◄█ █  -  █
-  █▄▄▄▄▄█ █▄▄█ █▄▄▄▄▄█ █▄▄█▄▄█ █▄▄▄▄▄█",
-                    @$"
-        ▄▄▄▄     ▄▄▄▄     ▄▄▄▄
-  ▄▄▄▄▄▄█  █▄▄▄▄▄█  █▄▄▄▄▄█  █
-  █__ --█  █__ --█    ◄█  -  █
-  █▄▄▄▄▄█▄▄█▄▄▄▄▄█▄▄█▄▄█▄▄▄▄▄█",
-                };
-
-                var logo = logos[new System.Random().Next(0, logos.Length)];
-
-                var banner = @$"
-{logo}
-┍━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ━━━━ ━  ━┉   ┉     ┉
-│ This program is free software: you can redistribute it and/or modify
-│ it under the terms of the GNU Affero General Public License as published
-│ by the Free Software Foundation, version 3.
-│                                     └─▸ SPDX: AGPL-3.0-only
-│
-│ This program is distributed with Additional Terms pursuant to Section 7
-│ of the AGPLv3.  See the LICENSE file in the root directory of this
-│ project for the complete terms and conditions.
-│
-│ 🌐 https://slskd.org
-│ 🐱 https://github.com/slskd/slskd
-│
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ ╌ ╌╌╌╌ ╌
-│ {version}";
-
-                if (IsDevelopment)
-                {
-                    banner += "\n│ └─▸ ⚠️ DEVELOPMENT";
-                }
-
-                if (IsCanary)
-                {
-                    banner += "\n│ └─▸ 🧪 CANARY";
-                }
-
-                banner += "\n╰───────────────────────────────────────────╶──── ─ ─── ─  ── ──┈  ┈";
-
-                Console.WriteLine(banner);
-            }
-            catch
-            {
-                // noop. console may not be available in all cases.
-            }
+            // sillon : bannière distincte, comme l'exige FORKING.md.
+            Console.WriteLine();
+            Console.WriteLine($"  sillon {version}");
+            Console.WriteLine("  This is a modified version of slskd. It is not maintained by, endorsed by, or affiliated with the slskd project or its author(s).");
+            Console.WriteLine("  Licensed under the GNU AGPL v3 with Additional Terms; see LICENSE.");
+            Console.WriteLine();
         }
 
         private static void VerifyDirectory(string directory, bool createIfMissing = true, bool verifyWriteable = true)
